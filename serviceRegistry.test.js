@@ -1,5 +1,5 @@
 import { ServiceRegistry } from './serviceRegistry.mjs';
-import { mockHeartbeatAPI } from './helpers';
+import { mockHeartbeatAPI } from './helpers/index.mjs';
 
 beforeEach(async () => {
   jest.useFakeTimers();
@@ -85,9 +85,7 @@ describe('ServiceRegistry', () => {
     jest.setSystemTime(new Date(2024, 0, 2)); // 模擬一段時間後
     const heartbeatMetas = serviceRegistry.getAllHeartbeatMeta();
 
-    heartbeatMetas.forEach(({ lastHeartbeatAt, composeKey }) => {
-      const [name, ip] = serviceRegistry.decomposeKey(composeKey);
-
+    heartbeatMetas.forEach(({ lastHeartbeatAt, ip, name }) => {
       if (Date.now() - new Date(lastHeartbeatAt).getTime() > 3000) {
         serviceRegistry.markOffline(name, ip);
       }
