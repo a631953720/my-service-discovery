@@ -1,0 +1,12 @@
+{
+  "name": "BE_quiz",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/taikang1997/BE_quiz.git",
+  "author": "kk <taikang@pisolutions.tech>",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.2",
+    "express": "^4.19.2"
+  }
+}
