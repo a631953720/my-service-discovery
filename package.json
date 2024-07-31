@@ -1,5 +1,5 @@
 {
-  "name": "BE_quiz",
+  "name": "my-service-discovery",
   "version": "1.0.0",
   "main": "index.js",
   "repository": "https://github.com/taikang1997/BE_quiz.git",
@@ -8,5 +8,13 @@
   "dependencies": {
     "axios": "^1.7.2",
     "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.25.3",
+    "babel-jest": "^29.7.0",
+    "jest": "^29.7.0"
+  },
+  "scripts": {
+    "test": "NODE_ENV=jest jest --config=jest.config.js"
   }
 }

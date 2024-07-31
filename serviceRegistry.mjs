@@ -1,12 +1,4 @@
-import axios from "axios";
-
-/**
- * @typedef {{
- *   ip: string;
- *   isOnline: boolean;
- *   isHttps: boolean;
- * } & Record<string, any>} Meta
- */
+import { mockHeartbeatAPI, heartbeatAPI, isDateValid } from './helpers/index.mjs'
 
 /**
  * @typedef {Map<string, ServiceWithMeta>} IPServiceMap
@@ -16,32 +8,18 @@ import axios from "axios";
  * @typedef {{
  *   lastHeartbeatAt: Date;
  *   errorsCount: number;
- *   composeKey: string;
- * }} HeartbeatMeta
+ *   ip: string;
+ *   name: string;
+ * }} HeartbeatMetaWithIPAndName
  */
 
 /**
- * @return {Promise<boolean>}
+ * @typedef {{
+ *   ip: string;
+ *   isOnline: boolean;
+ *   isHttps: boolean;
+ * } & Record<string, any>} Meta
  */
-async function mockHeartbeatAPI() {
-  return Math.random() > 0.5;
-}
-
-/**
- * @param {string} ip
- * @param {boolean} isHttps
- * @return {Promise<boolean>}
- */
-async function heartbeatAPI(ip, isHttps) {
-  try {
-    const protocol = isHttps ? 'https' : 'http';
-    const res = await axios.get(`${protocol}://${ip}/api/heartbeat`);
-    return res.status === 200;
-  } catch (e) {
-    console.log('heartbeatAPI failed');
-    return false;
-  }
-}
 
 class ServiceWithMeta {
   /**
@@ -53,6 +31,8 @@ class ServiceWithMeta {
     this.ip = meta.ip;
     this.isOnline = meta.isOnline;
     this.isHttps = meta.isHttps;
+    this.lastHeartbeatAt = new Date();
+    this.errorsCount = 0;
   }
 
   toJSON() {
@@ -61,6 +41,31 @@ class ServiceWithMeta {
       ip: this.ip,
       isOnline: this.isOnline,
       isHttps: this.isHttps,
+    }
+  }
+
+  /**
+   * @return {HeartbeatMetaWithIPAndName}
+   */
+  getHeartbeatMetaWithIPAndName() {
+    return {
+      ip: this.ip,
+      name: this.name,
+      lastHeartbeatAt: this.lastHeartbeatAt,
+      errorsCount: this.errorsCount,
+    }
+  }
+
+  /**
+   * @param {Partial<Pick<HeartbeatMetaWithIPAndName, 'errorsCount' | 'lastHeartbeatAt'>>} heartbeatMeta
+   */
+  updateHeartbeatMeta(heartbeatMeta) {
+    if (heartbeatMeta.lastHeartbeatAt && isDateValid(heartbeatMeta.lastHeartbeatAt)) {
+      this.lastHeartbeatAt = heartbeatMeta.lastHeartbeatAt;
+    }
+
+    if (typeof heartbeatMeta.errorsCount === 'number') {
+      this.errorsCount = heartbeatMeta.errorsCount;
     }
   }
 }
@@ -77,15 +82,11 @@ export class ServiceRegistry {
      * @type {Map<string, IPServiceMap>}
      */
     this.map = new Map();
-    /**
-     * @type {Map<string, HeartbeatMeta>}
-     */
-    this.heartbeatMap = new Map();
   }
 
   /**
    * @param {string} name
-   * @param {Meta} meta
+   * @param {Omit<Meta, 'heartbeatMeta'>} meta
    */
   register(name, meta) {
     if (this.isLocked) {
@@ -109,13 +110,6 @@ export class ServiceRegistry {
 
     ipServiceMap.set(meta.ip, new ServiceWithMeta(name, meta));
     this.map.set(name, ipServiceMap);
-
-    const composeKey = this.composeKey(name, meta.ip);
-    this.heartbeatMap.set(composeKey, {
-      composeKey,
-      errorsCount: 0,
-      lastHeartbeatAt: new Date(),
-    });
     this.isLocked = false;
   }
 
@@ -153,13 +147,15 @@ export class ServiceRegistry {
   };
 
   /**
-   * @return {HeartbeatMeta[]}
+   * @return {HeartbeatMetaWithIPAndName[]}
    */
   getAllHeartbeatMeta() {
     const result = [];
 
-    this.heartbeatMap.forEach((meta) => {
-      result.push(meta);
+    this.map.forEach((ipServiceMap) => {
+      ipServiceMap.forEach((service) => {
+        result.push(service.getHeartbeatMetaWithIPAndName());
+      });
     });
 
     return result;
@@ -172,7 +168,6 @@ export class ServiceRegistry {
   removeServiceFromIPServiceMap(name, ip) {
     const ipServiceMap = this.map.get(name);
     ipServiceMap?.delete(ip);
-    this.heartbeatMap.delete(this.composeKey(name, ip));
   }
 
   /**
@@ -189,39 +184,20 @@ export class ServiceRegistry {
     const isAlive = this.isMock
       ? await mockHeartbeatAPI()
       : await heartbeatAPI(ip, service.isHttps);
-    const composeKey = this.composeKey(name, ip);
-    /**
-     * @type HeartbeatMeta
-     */
-    const result = this.heartbeatMap.get(composeKey);
-    if (!result) return;
+    const heartbeatMeta = service.getHeartbeatMetaWithIPAndName();
 
     if (!isAlive) {
       console.log(`${name}-${ip} heartbeat failed`);
-      result.errorsCount += 1;
+      service.updateHeartbeatMeta({
+        errorsCount: heartbeatMeta.errorsCount + 1,
+      })
     } else {
       console.log(`${name}-${ip} update heartbeat date`);
-      result.date = new Date();
+      service.updateHeartbeatMeta({
+        lastHeartbeatAt: new Date(),
+        errorsCount: 0,
+      });
     }
-
-    this.heartbeatMap.set(composeKey, result);
-  }
-
-  /**
-   * @param {string} name
-   * @param {string} ip
-   * @return {string}
-   */
-  composeKey(name, ip) {
-    return JSON.stringify([name, ip]);
-  }
-
-  /**
-   * @param {string} string
-   * @return {[string, string]} [name, ip]
-   */
-  decomposeKey(string) {
-    return JSON.parse(string);
   }
 
   /**
