@@ -55,8 +55,7 @@ app.listen(port, () => {
     const now = new Date();
     const heartbeatMetas = serviceRegistry.getAllHeartbeatMeta();
 
-    heartbeatMetas.forEach(({ lastHeartbeatAt, composeKey, errorsCount }) => {
-      const [name, ip] = serviceRegistry.decomposeKey(composeKey);
+    heartbeatMetas.forEach(({ lastHeartbeatAt, ip, name, errorsCount }) => {
       // remove service when heartbeat failed 5 times
       if (errorsCount >= 5) {
         console.log(`${name}-${ip} removed`);
